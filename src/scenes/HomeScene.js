@@ -40,18 +40,18 @@ export default class HomeScene extends Phaser.Scene {
     let button = this.add.image(width / 2, height * 0.65, "playButton");
 
     // thu nhỏ nút
-    button.setScale(0.3);
+    button.setScale(0.12);
 
     button.setInteractive();
 
     // hiệu ứng hover
 
     button.on("pointerover", () => {
-      button.setScale(0.35);
+      button.setScale(0.2);
     });
 
     button.on("pointerout", () => {
-      button.setScale(0.3);
+      button.setScale(0.12);
     });
 
     // chuyển scene
