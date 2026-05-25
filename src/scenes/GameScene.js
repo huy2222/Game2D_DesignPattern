@@ -53,14 +53,14 @@ export default class GameScene extends Phaser.Scene {
     const layerNamesToCreate = discoveredLayerNames.length > 0 ? discoveredLayerNames : fallbackLayerNames;
 
     layerNamesToCreate.forEach((layerName) => {
-        const layer = map.createLayer(layerName, tilesets, 0, 0);
-        if (!layer) {
-          console.warn(`Layer ${layerName} could not be created.`);
-          return;
-        }
+      const layer = map.createLayer(layerName, tilesets, 0, 0);
+      if (!layer) {
+        console.warn(`Layer ${layerName} could not be created.`);
+        return;
+      }
 
-        mapLayers[layerName] = layer;
-      });
+      mapLayers[layerName] = layer;
+    });
 
     if (Object.keys(mapLayers).length === 0) {
       this.add
