@@ -12,6 +12,8 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
     this.target = scene.player;
     this.speed = 50;
     this.damage = 10;
+    this.enemyType = animPrefix;
+    this.isDead = false;
     this.hp = 30; // Máu của enemy
 
     // Cờ trạng thái: Khóa di chuyển khi đang vung vũ khí chém
@@ -31,7 +33,7 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
 
   update() {
     // Không làm gì nếu không có mục tiêu, đã chết, hoặc ĐANG trong tư thế tấn công
-    if (!this.target || !this.active || this.isAttacking) return;
+    if (!this.target || !this.active || this.isAttacking || this.isDead) return;
 
     // Tính khoảng cách tới player
     const distance = Phaser.Math.Distance.Between(
@@ -98,6 +100,8 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
+    if (this.isDead) return;
+
     this.hp -= amount;
     
     // Đổi màu đỏ chớp chớp khi bị hit
@@ -112,8 +116,13 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   die() {
+    if (this.isDead) return;
+
+    this.isDead = true;
     this.active = false;
     this.setVelocity(0, 0);
+    this.scene.dropItemFromEnemy?.(this);
+
     if (this.animPrefix) {
       this.play(`anim_${this.animPrefix}_death`);
       this.once("animationcomplete", () => {
@@ -122,5 +131,29 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.destroy();
     }
+  }
+
+  applyBurn(damage, ticks, interval = 500) {
+    if (this.isDead) return;
+
+    // Reset burn instead of stacking many burn timers.
+    this.burnTimer?.remove(false);
+    let remainingTicks = ticks;
+    this.setTint(0xff7a00);
+
+    this.burnTimer = this.scene.time.addEvent({
+      delay: interval,
+      repeat: ticks - 1,
+      callback: () => {
+        if (!this.active || this.isDead) return;
+
+        this.takeDamage(damage);
+        remainingTicks -= 1;
+
+        if (remainingTicks <= 0 && !this.isDead) {
+          this.clearTint();
+        }
+      },
+    });
   }
 }
