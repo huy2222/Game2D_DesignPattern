@@ -23,6 +23,7 @@ import soldierDeathImg from "../assets/Enemy2/Soldier-Death.png";
 import BasicEnemy from "../classes/BasicEnemy";
 import FastDecorator from "../classes/decorator/FastDecorator";
 import StealthDecorator from "../classes/decorator/StealthDecorator";
+import Player from "../classes/Player";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -122,49 +123,7 @@ export default class GameScene extends Phaser.Scene {
     this.anims.create({ key: 'shoot', frames: this.anims.generateFrameNumbers('player_attack'), frameRate: 15, repeat: 0 });
 
     // --- TẠO NHÂN VẬT ---
-    this.player = this.physics.add.sprite(map.widthInPixels / 2, map.heightInPixels / 2, "player_walk");
-    this.player.setCollideWorldBounds(true);
-    this.player.setScale(3); // Làm player bự bằng enemy
-
-    // Thêm hệ thống máu cho player
-    this.player.hp = 100;
-    this.hpText = this.add.text(10, 10, 'HP: 100', { 
-      fontSize: '24px', fill: '#ff0000', fontStyle: 'bold', backgroundColor: '#ffffff88', padding: { x: 5, y: 5 } 
-    }).setScrollFactor(0).setDepth(100);
-
-    this.player.takeDamage = (amount) => {
-        this.player.hp -= amount;
-        if (this.player.hp <= 0) {
-            this.player.hp = 0;
-            console.log("Player died!");
-            this.scene.restart(); // Chết thì reset game
-        }
-        this.hpText.setText('HP: ' + this.player.hp);
-        
-        // Hiệu ứng chớp đỏ khi bị đánh
-        this.player.setTint(0xff0000);
-        this.time.delayedCall(150, () => {
-            this.player.clearTint();
-        });
-    };
-
-    // Sự kiện chuyển về idle khi bắn xong
-    this.player.on('animationcomplete-shoot', () => {
-      if (this.player.body.velocity.x === 0 && this.player.body.velocity.y === 0) {
-        this.player.play('idle', true);
-      }
-    });
-
-    // --- TẠO NHÓM MŨI TÊN ---
-    this.arrows = this.physics.add.group({
-      classType: Phaser.Physics.Arcade.Image,
-      maxSize: 20
-    });
-    this.lastFired = 0;
-
-    // --- THIẾT LẬP PHÍM BẤM ---
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.player = new Player(this, map.widthInPixels / 2, map.heightInPixels / 2, "player_walk");
 
     collidableLayers.forEach((layer) => {
       this.physics.add.collider(this.player, layer);
@@ -254,7 +213,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true);
 
     // --- PHẦN 6: VA CHẠM MŨI TÊN VÀ ENEMY ---
-    this.physics.add.overlap(this.arrows, this.physicsEnemiesGroup, (arrow, enemy) => {
+    this.physics.add.overlap(this.player.getArrows(), this.physicsEnemiesGroup, (arrow, enemy) => {
         if (arrow.active && enemy.active) {
             // Tắt vật lý và ẩn mũi tên đi (chuẩn xác cho Phaser)
             arrow.disableBody(true, true);
@@ -276,67 +235,6 @@ export default class GameScene extends Phaser.Scene {
 
     if (!this.player) return;
 
-    const speed = 150;
-    this.player.setVelocity(0);
-
-    // Di chuyển
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-speed);
-      this.player.setFlipX(true);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(speed);
-      this.player.setFlipX(false);
-    }
-
-    if (this.cursors.up.isDown) {
-      this.player.setVelocityY(-speed);
-    } else if (this.cursors.down.isDown) {
-      this.player.setVelocityY(speed);
-    }
-
-    // Xử lý animation di chuyển vs đứng yên
-    if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
-      if (this.player.anims.currentAnim?.key !== 'shoot') {
-        this.player.play('walk', true);
-      }
-    } else {
-      if (this.player.anims.currentAnim?.key !== 'shoot') {
-        this.player.play('idle', true);
-      }
-    }
-
-    // Bắn cung (nhấn Space)
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && time > this.lastFired) {
-      this.player.play('shoot', true);
-      this.shootArrow();
-      this.lastFired = time + 400; // Thời gian delay giữa 2 lần bắn (400ms)
-    }
-
-    // Xóa mũi tên khi bay ra ngoài bản đồ
-    this.arrows.getChildren().forEach((arrow) => {
-      if (arrow.active && (arrow.x < 0 || arrow.x > this.physics.world.bounds.width || arrow.y < 0 || arrow.y > this.physics.world.bounds.height)) {
-        arrow.disableBody(true, true);
-      }
-    });
-  }
-
-  shootArrow() {
-    const arrow = this.arrows.get(this.player.x, this.player.y, 'arrow');
-    if (arrow) {
-      // Kích hoạt lại vật lý và hiển thị mũi tên ở vị trí người chơi
-      arrow.enableBody(true, this.player.x, this.player.y, true, true);
-      
-      arrow.setScale(3); // Phóng to mũi tên
-      arrow.setDepth(15); // Đảm bảo mũi tên luôn nổi lên trên cùng (trên cả map và quái)
-      
-      // Bay theo hướng nhân vật đang quay mặt
-      const direction = this.player.flipX ? -1 : 1;
-      arrow.setFlipX(this.player.flipX);
-      
-      const arrowSpeed = 600; // Tốc độ bay của mũi tên
-      arrow.body.setSize(arrow.width, arrow.height); // Reset body size
-      arrow.setVelocityX(arrowSpeed * direction);
-      arrow.setVelocityY(0);
-    }
+    this.player.update(time);
   }
 }
