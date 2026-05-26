@@ -178,7 +178,7 @@ export default class GameScene extends Phaser.Scene {
 
     // 1. Tạo Enemy Orc - Chạy nhanh
     // Cập nhật tọa độ sinh ra gần player hơn một chút (300, 300) và thêm tiền tố "orc"
-    const enemy1 = new BasicEnemy(this, 300, 300, "orc_idle", "orc");
+    const enemy1 = new BasicEnemy(this, 800, 300, "orc_idle", "orc");
     this.physicsEnemiesGroup.add(enemy1);
 
     const fastEnemy = new FastDecorator(enemy1);
@@ -186,7 +186,7 @@ export default class GameScene extends Phaser.Scene {
 
     // 2. Tạo Enemy Soldier - Tàng hình
     // Dùng texture "soldier_idle", tọa độ (500, 300) và thêm tiền tố "soldier"
-    const enemy2 = new BasicEnemy(this, 800, 300, "soldier_idle", "soldier");
+    const enemy2 = new BasicEnemy(this, 600, 300, "soldier_idle", "soldier");
     this.physicsEnemiesGroup.add(enemy2);
 
     const stealthEnemy = new StealthDecorator(enemy2);
