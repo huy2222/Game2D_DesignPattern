@@ -5,7 +5,7 @@ export default class FastDecorator extends EnemyDecorator {
     super(enemy);
 
     // Thay đổi thuộc tính của enemy gốc
-    this.enemy.speed = 150;
+    this.enemy.speed = 50;
     this.enemy.setTint(0xff0000);
   }
 

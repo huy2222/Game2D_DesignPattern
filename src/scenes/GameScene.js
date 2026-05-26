@@ -78,6 +78,12 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#1f2937");
 
+    
+
+
+
+
+
     // --- PHẦN 1: TẠO MAP ---
     const map = this.make.tilemap({ key: "map" });
     if (!map) {
