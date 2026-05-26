@@ -12,6 +12,9 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
     this.target = scene.player;
     this.speed = 50;
     this.damage = 10;
+    this.enemyType = animPrefix;
+    this.isDead = false;
+    this.hp = 30; // Máu của enemy
 
     // Cờ trạng thái: Khóa di chuyển khi đang vung vũ khí chém
     this.isAttacking = false;
@@ -30,7 +33,7 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
 
   update() {
     // Không làm gì nếu không có mục tiêu, đã chết, hoặc ĐANG trong tư thế tấn công
-    if (!this.target || !this.active || this.isAttacking) return;
+    if (!this.target || !this.active || this.isAttacking || this.isDead) return;
 
     // Tính khoảng cách tới player
     const distance = Phaser.Math.Distance.Between(
@@ -75,16 +78,82 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
       this.once("animationcomplete", (anim) => {
         if (anim.key === `anim_${this.animPrefix}_attack1`) {
           this.isAttacking = false; // Mở khóa để tiếp tục đi bộ/đuổi theo
-          console.log(`${this.animPrefix} chém trúng: -${this.damage} HP`);
-          // Logic trừ máu player để ở đây
+          
+          // Kiểm tra nếu quái còn sống và player còn ở trong tầm đánh thì trừ máu
+          if (this.active && this.target && this.target.active) {
+            const dist = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
+            if (dist < 60 && this.target.takeDamage) {
+              this.target.takeDamage(this.damage);
+            }
+          }
         }
       });
     } else {
       // Fallback an toàn nếu lỡ không truyền animPrefix
-      console.log(`Quái cơ bản tấn công: -${this.damage} HP`);
       this.scene.time.delayedCall(500, () => {
         this.isAttacking = false;
+        if (this.active && this.target && this.target.takeDamage) {
+            this.target.takeDamage(this.damage);
+        }
       });
     }
+  }
+
+  takeDamage(amount) {
+    if (this.isDead) return;
+
+    this.hp -= amount;
+    
+    // Đổi màu đỏ chớp chớp khi bị hit
+    this.setTint(0xff0000);
+    this.scene.time.delayedCall(150, () => {
+        this.clearTint();
+    });
+
+    if (this.hp <= 0) {
+      this.die();
+    }
+  }
+
+  die() {
+    if (this.isDead) return;
+
+    this.isDead = true;
+    this.active = false;
+    this.setVelocity(0, 0);
+    this.scene.dropItemFromEnemy?.(this);
+
+    if (this.animPrefix) {
+      this.play(`anim_${this.animPrefix}_death`);
+      this.once("animationcomplete", () => {
+        this.destroy();
+      });
+    } else {
+      this.destroy();
+    }
+  }
+
+  applyBurn(damage, ticks, interval = 500) {
+    if (this.isDead) return;
+
+    // Reset burn instead of stacking many burn timers.
+    this.burnTimer?.remove(false);
+    let remainingTicks = ticks;
+    this.setTint(0xff7a00);
+
+    this.burnTimer = this.scene.time.addEvent({
+      delay: interval,
+      repeat: ticks - 1,
+      callback: () => {
+        if (!this.active || this.isDead) return;
+
+        this.takeDamage(damage);
+        remainingTicks -= 1;
+
+        if (remainingTicks <= 0 && !this.isDead) {
+          this.clearTint();
+        }
+      },
+    });
   }
 }
