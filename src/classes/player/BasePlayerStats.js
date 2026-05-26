@@ -2,10 +2,10 @@ export default class BasePlayerStats {
   constructor(player) {
     this.player = player;
 
-    this.player.maxHp ??= 100;
+    this.player.maxHp ??= 200;
     this.player.hp ??= this.player.maxHp;
-    this.player.baseMoveSpeed ??= 150;
-    this.player.baseAttackDamage ??= 10;
+    this.player.baseMoveSpeed ??= 175;
+    this.player.baseAttackDamage ??= 25;
   }
 
   getMoveSpeed() {
