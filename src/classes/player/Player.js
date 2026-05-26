@@ -13,35 +13,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setScale(3);
     this.setCollideWorldBounds(true);
-<<<<<<< HEAD:src/classes/Player.js
 
     // Kích thước hitbox
-=======
-    this.setScale(3); // Làm player bự bằng enemy
-
-    // Thu nhỏ hitbox (bounding box) để va chạm chuẩn xác hơn
->>>>>>> b53850fd44f24dfc0b8f10769fdb6f13259394ab:src/classes/player/Player.js
     this.body.setSize(20, 30);
 
     // Căn giữa hitbox
     this.body.setOffset((this.width - 20) / 2, (this.height - 30) / 2);
 
     // Thêm hệ thống máu cho player
-<<<<<<< HEAD:src/classes/Player.js
-    this.maxHp = 40;
-    this.hp = 40;
+    this.maxHp = 100;
+    this.hp = 100;
     this.baseMoveSpeed = 150;
     this.baseAttackDamage = 10;
     this.hpText = scene.add
       .text(10, 10, "HP: 100", {
-=======
-    this.maxHp = 200;
-    this.hp = 500;
-    this.baseMoveSpeed = 175;
-    this.baseAttackDamage = 25;
-    this.hpText = scene.add
-      .text(10, 10, "HP: 200", {
->>>>>>> b53850fd44f24dfc0b8f10769fdb6f13259394ab:src/classes/player/Player.js
         fontSize: "24px",
         fill: "#ff0000",
         fontStyle: "bold",
@@ -100,19 +85,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       finalDamage = this.playerEffects.takeDamage(amount);
     }
     this.hp -= finalDamage;
-<<<<<<< HEAD:src/classes/Player.js
     if (this.hp <= 0 && !this.isGameOver) {
       this.hp = 0;
       this.isGameOver = true;
       console.log("Player died!");
       this.scene.scene.pause();
       this.scene.scene.launch("GameOverScene");
-=======
-    if (this.hp <= 0) {
-      this.hp = 0;
-      console.log("Player died!");
-      this.scene.scene.restart(); // Chết thì reset game
->>>>>>> b53850fd44f24dfc0b8f10769fdb6f13259394ab:src/classes/player/Player.js
     }
 
     if (this.playerEffects) {

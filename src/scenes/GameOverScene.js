@@ -36,9 +36,6 @@ export default class GameOverScene extends Phaser.Scene {
 
     popup.setStrokeStyle(3, 0xffffff);
 
-    // hiệu ứng xuất hiện
-    popup.setScale(0);
-
     // ===== Tiêu đề =====
     let title = this.add
       .text(
@@ -48,26 +45,26 @@ export default class GameOverScene extends Phaser.Scene {
         {
           fontSize: "42px",
           color: "#ffffff",
-          fontStyle: "bold"
+          fontStyle: "bold",
         }
       )
       .setOrigin(0.5);
 
-    title.setScale(0);
-
-    // ===== Nút play again =====
+    // ===== Nút Try Again =====
     let button = this.add.image(
       width / 2,
       height / 2 + 50,
       "playAgain"
     );
 
-    button.setScale(0.35);
     button.setInteractive();
 
+    // Đặt tất cả scale ban đầu = 0 để animate
+    popup.setScale(0);
+    title.setScale(0);
     button.setScale(0);
 
-    // hover
+    // ===== Hover effect =====
     button.on("pointerover", () => {
       button.setScale(0.4);
     });
@@ -76,7 +73,7 @@ export default class GameOverScene extends Phaser.Scene {
       button.setScale(0.35);
     });
 
-    // restart game
+    // ===== Restart game =====
     button.on("pointerdown", () => {
       this.scene.stop("GameOverScene");
       this.scene.stop("GameScene");
@@ -85,11 +82,30 @@ export default class GameOverScene extends Phaser.Scene {
 
     // ===== Animation popup =====
 
+    // Popup
     this.tweens.add({
-      targets: [popup, title, button],
+      targets: popup,
       scale: 1,
       duration: 300,
-      ease: "Back.Out"
+      ease: "Back.Out",
+    });
+
+    // Title
+    this.tweens.add({
+      targets: title,
+      scale: 1,
+      duration: 300,
+      ease: "Back.Out",
+      delay: 100,
+    });
+
+    // Button
+    this.tweens.add({
+      targets: button,
+      scale: 0.35,
+      duration: 300,
+      ease: "Back.Out",
+      delay: 200,
     });
   }
 }
