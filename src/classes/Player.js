@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import PlayerEffectManager from "./player/PlayerEffectManager";
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -12,11 +13,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setScale(3); // Làm player bự bằng enemy
     
     // Thu nhỏ hitbox (bounding box) để va chạm chuẩn xác hơn
-    this.body.setSize(30, 50);
-    this.body.setOffset(35, 50);
+    this.body.setSize(20, 30);
+    this.body.setOffset(40, 60);
 
     // Thêm hệ thống máu cho player
+    this.maxHp = 100;
     this.hp = 100;
+    this.baseMoveSpeed = 150;
+    this.baseAttackDamage = 10;
     this.hpText = scene.add.text(10, 10, 'HP: 100', { 
       fontSize: '24px', fill: '#ff0000', fontStyle: 'bold', backgroundColor: '#ffffff88', padding: { x: 5, y: 5 } 
     }).setScrollFactor(0).setDepth(100);
@@ -55,14 +59,27 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  initEffects(effectText, onUpdate) {
+    this.playerEffects = new PlayerEffectManager(this.scene, this, this.hpText, onUpdate);
+  }
+
   takeDamage(amount) {
-    this.hp -= amount;
+    let finalDamage = amount;
+    if (this.playerEffects) {
+      finalDamage = this.playerEffects.takeDamage(amount);
+    }
+    this.hp -= finalDamage;
     if (this.hp <= 0) {
         this.hp = 0;
         console.log("Player died!");
         this.scene.scene.restart(); // Chết thì reset game
     }
-    this.hpText.setText('HP: ' + this.hp);
+    
+    if (this.playerEffects) {
+        this.playerEffects.updateHpText();
+    } else {
+        this.hpText.setText('HP: ' + this.hp);
+    }
     
     // Hiệu ứng chớp đỏ khi bị đánh
     this.setTint(0xff0000);
@@ -72,7 +89,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time) {
-    const speed = 150;
+    const speed = this.playerEffects ? this.playerEffects.getMoveSpeed() : this.baseMoveSpeed;
     this.setVelocity(0);
 
     // Di chuyển
@@ -110,21 +127,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   shootArrowPointer(pointer) {
+    // Tính toán góc giữa player và vị trí chuột trong world
+    const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
+
+    // Tính toán vị trí xuất phát của mũi tên (cách tâm player 40 pixel)
+    // Mục đích: Mũi tên bay ra từ tay nhân vật, tránh việc cái đuôi mũi tên chạm vào quái đang cắn lén sau lưng
+    const spawnDistance = 40;
+    const startX = this.x + Math.cos(angle) * spawnDistance;
+    const startY = this.y + Math.sin(angle) * spawnDistance;
+
     // Ưu tiên lấy mũi tên đã chết, nếu không có sẽ tự tạo mới
-    const arrow = this.arrows.get(this.x, this.y, 'arrow');
+    const arrow = this.arrows.get(startX, startY, 'arrow');
     if (!arrow) return;
 
     // Kích hoạt lại vật lý và hiển thị mũi tên ở vị trí người chơi
-    arrow.enableBody(true, this.x, this.y, true, true);
+    arrow.enableBody(true, startX, startY, true, true);
     
     arrow.setScale(3); // Phóng to mũi tên
     arrow.setDepth(15); // Đảm bảo mũi tên luôn nổi lên trên cùng
     arrow.setFlipX(false);
     
-    // Tính toán góc giữa player và vị trí chuột trong world
-    // Dùng pointer.worldX và worldY là chuẩn xác nhất với camera
-    const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
-
     // Quay mặt player về hướng chuột
     if (pointer.worldX < this.x) {
       this.setFlipX(true);
