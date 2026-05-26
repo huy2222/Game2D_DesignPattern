@@ -9,6 +9,10 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.setScale(3);
 
+    // Thu nhỏ hitbox (bounding box) để mũi tên bay chạm sát quái mới mất
+    this.body.setSize(20, 30);
+    this.body.setOffset(40, 60);
+
     this.target = scene.player;
     this.speed = 50;
     this.damage = 10;
