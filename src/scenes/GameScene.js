@@ -26,9 +26,9 @@ import soldierAttack1Img from "../assets/Enemy2/Soldier-Attack01.png";
 import soldierHurtImg from "../assets/Enemy2/Soldier-Hurt.png";
 import soldierDeathImg from "../assets/Enemy2/Soldier-Death.png";
 
-import BasicEnemy from "../classes/BasicEnemy";
-import FastDecorator from "../classes/decorator/FastDecorator";
-import StealthDecorator from "../classes/decorator/StealthDecorator";
+import BasicEnemy from "../classes/Enemy/BasicEnemy";
+import FastDecorator from "../classes/Enemy/decorator/FastDecorator";
+import StealthDecorator from "../classes/Enemy/decorator/StealthDecorator";
 import PlayerEffectManager from "../classes/player/PlayerEffectManager";
 import ItemFactory, { ITEM_TEXTURE_KEYS } from "../classes/items/ItemFactory";
 
@@ -48,8 +48,14 @@ export default class GameScene extends Phaser.Scene {
     this.load.image("DecorationsImage", decorationsImg);
 
     // Kích thước 1 khung hình (frame) của nhân vật có thể cần điều chỉnh lại cho chính xác với spritesheet mới
-    this.load.spritesheet("player_walk", playerWalkImg, { frameWidth: 100, frameHeight: 100 });
-    this.load.spritesheet("player_attack", playerAttackImg, { frameWidth: 100, frameHeight: 100 });
+    this.load.spritesheet("player_walk", playerWalkImg, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet("player_attack", playerAttackImg, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
     this.load.image("arrow", arrowImg);
     this.load.image(ITEM_TEXTURE_KEYS.speed, speedItemImg);
     this.load.image(ITEM_TEXTURE_KEYS.damage, damageItemImg);
@@ -107,24 +113,42 @@ export default class GameScene extends Phaser.Scene {
         : fallbackLayerNames;
 
     layerNamesToCreate.forEach((layerName) => {
-        const layer = map.createLayer(layerName, tilesets, 0, 0);
-        if (!layer) {
-          console.warn(`Layer ${layerName} could not be created.`);
-          return;
-        }
+      const layer = map.createLayer(layerName, tilesets, 0, 0);
+      if (!layer) {
+        console.warn(`Layer ${layerName} could not be created.`);
+        return;
+      }
 
-        mapLayers[layerName] = layer;
-      });
+      mapLayers[layerName] = layer;
+    });
 
     // --- PHẦN 2: TẠO PLAYER ---
     // --- TẠO ANIMATION CHO NHÂN VẬT TỪ CÁC FILE TRONG ENEMY2 ---
     // Vì không có file Idle cho player, ta sẽ lấy frame đầu tiên của animation Walk làm frame đứng yên (Idle)
-    this.anims.create({ key: 'idle', frames: [{ key: 'player_walk', frame: 0 }], frameRate: 8 });
-    this.anims.create({ key: 'walk', frames: this.anims.generateFrameNumbers('player_walk'), frameRate: 10, repeat: -1 });
-    this.anims.create({ key: 'shoot', frames: this.anims.generateFrameNumbers('player_attack'), frameRate: 15, repeat: 0 });
+    this.anims.create({
+      key: "idle",
+      frames: [{ key: "player_walk", frame: 0 }],
+      frameRate: 8,
+    });
+    this.anims.create({
+      key: "walk",
+      frames: this.anims.generateFrameNumbers("player_walk"),
+      frameRate: 10,
+      repeat: -1,
+    });
+    this.anims.create({
+      key: "shoot",
+      frames: this.anims.generateFrameNumbers("player_attack"),
+      frameRate: 15,
+      repeat: 0,
+    });
 
     // --- TẠO NHÂN VẬT ---
-    this.player = this.physics.add.sprite(map.widthInPixels / 2, map.heightInPixels / 2, "player_walk");
+    this.player = this.physics.add.sprite(
+      map.widthInPixels / 2,
+      map.heightInPixels / 2,
+      "player_walk",
+    );
     this.player.setCollideWorldBounds(true);
     this.player.setScale(3); // Làm player bự bằng enemy
     this.player.body.setSize(20, 28);
@@ -135,46 +159,67 @@ export default class GameScene extends Phaser.Scene {
     this.player.hp = 100;
     this.player.baseMoveSpeed = 150;
     this.player.baseAttackDamage = 10;
-    this.hpText = this.add.text(10, 10, 'HP: 100', { 
-      fontSize: '24px', fill: '#ff0000', fontStyle: 'bold', backgroundColor: '#ffffff88', padding: { x: 5, y: 5 } 
-    }).setScrollFactor(0).setDepth(100);
+    this.hpText = this.add
+      .text(10, 10, "HP: 100", {
+        fontSize: "24px",
+        fill: "#ff0000",
+        fontStyle: "bold",
+        backgroundColor: "#ffffff88",
+        padding: { x: 5, y: 5 },
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
 
-    this.effectText = this.add.text(10, 52, 'Effects: None', {
-      fontSize: '16px', fill: '#ffffff', backgroundColor: '#00000088', padding: { x: 5, y: 4 }
-    }).setScrollFactor(0).setDepth(100);
+    this.effectText = this.add
+      .text(10, 52, "Effects: None", {
+        fontSize: "16px",
+        fill: "#ffffff",
+        backgroundColor: "#00000088",
+        padding: { x: 5, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
 
-    this.playerEffects = new PlayerEffectManager(this, this.player, this.hpText, () => {
-      this.updateActiveEffectsUi();
-    });
+    this.playerEffects = new PlayerEffectManager(
+      this,
+      this.player,
+      this.hpText,
+      () => {
+        this.updateActiveEffectsUi();
+      },
+    );
 
     this.player.takeDamage = (amount) => {
-        const finalDamage = this.playerEffects.takeDamage(amount);
-        this.player.hp -= finalDamage;
-        if (this.player.hp <= 0) {
-            this.player.hp = 0;
-            console.log("Player died!");
-            this.scene.restart(); // Chết thì reset game
-        }
-        this.playerEffects.updateHpText();
-        
-        // Hiệu ứng chớp đỏ khi bị đánh
-        this.player.setTint(0xff0000);
-        this.time.delayedCall(150, () => {
-            this.player.clearTint();
-        });
+      const finalDamage = this.playerEffects.takeDamage(amount);
+      this.player.hp -= finalDamage;
+      if (this.player.hp <= 0) {
+        this.player.hp = 0;
+        console.log("Player died!");
+        this.scene.restart(); // Chết thì reset game
+      }
+      this.playerEffects.updateHpText();
+
+      // Hiệu ứng chớp đỏ khi bị đánh
+      this.player.setTint(0xff0000);
+      this.time.delayedCall(150, () => {
+        this.player.clearTint();
+      });
     };
 
     // Sự kiện chuyển về idle khi bắn xong
-    this.player.on('animationcomplete-shoot', () => {
-      if (this.player.body.velocity.x === 0 && this.player.body.velocity.y === 0) {
-        this.player.play('idle', true);
+    this.player.on("animationcomplete-shoot", () => {
+      if (
+        this.player.body.velocity.x === 0 &&
+        this.player.body.velocity.y === 0
+      ) {
+        this.player.play("idle", true);
       }
     });
 
     // --- TẠO NHÓM MŨI TÊN ---
     this.arrows = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Image,
-      maxSize: 20
+      maxSize: 20,
     });
     this.lastFired = 0;
 
@@ -192,7 +237,9 @@ export default class GameScene extends Phaser.Scene {
       down: Phaser.Input.Keyboard.KeyCodes.S,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.spaceKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+    );
 
     // --- PHẦN 3: TẠO ANIMATIONS ---
     // Animations cho Orc
@@ -219,7 +266,10 @@ export default class GameScene extends Phaser.Scene {
     });
     this.anims.create({
       key: "anim_orc_death",
-      frames: this.anims.generateFrameNumbers("orc_death", { start: 0, end: 3 }),
+      frames: this.anims.generateFrameNumbers("orc_death", {
+        start: 0,
+        end: 3,
+      }),
       frameRate: 8,
       repeat: 0,
     });
@@ -254,7 +304,10 @@ export default class GameScene extends Phaser.Scene {
     });
     this.anims.create({
       key: "anim_soldier_death",
-      frames: this.anims.generateFrameNumbers("soldier_death", { start: 0, end: 3 }),
+      frames: this.anims.generateFrameNumbers("soldier_death", {
+        start: 0,
+        end: 3,
+      }),
       frameRate: 8,
       repeat: 0,
     });
@@ -286,29 +339,33 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true);
 
     // --- PHẦN 6: VA CHẠM MŨI TÊN VÀ ENEMY ---
-    this.physics.add.overlap(this.arrows, this.physicsEnemiesGroup, (arrow, enemy) => {
+    this.physics.add.overlap(
+      this.arrows,
+      this.physicsEnemiesGroup,
+      (arrow, enemy) => {
         if (arrow.active && enemy.active) {
-            // Tắt vật lý và ẩn mũi tên đi (chuẩn xác cho Phaser)
-            arrow.disableBody(true, true);
-            
-            // Gây sát thương lên enemy
-            if (enemy.takeDamage) {
-                const attack = this.playerEffects.rollAttackDamage();
-                enemy.takeDamage(attack.amount);
+          // Tắt vật lý và ẩn mũi tên đi (chuẩn xác cho Phaser)
+          arrow.disableBody(true, true);
 
-                if (attack.isCritical) {
-                  console.log("Critical hit!");
-                }
+          // Gây sát thương lên enemy
+          if (enemy.takeDamage) {
+            const attack = this.playerEffects.rollAttackDamage();
+            enemy.takeDamage(attack.amount);
 
-                if (this.playerEffects.hasBurnAttack() && enemy.applyBurn) {
-                  enemy.applyBurn(
-                    this.playerEffects.getBurnDamage(),
-                    this.playerEffects.getBurnTicks(),
-                  );
-                }
+            if (attack.isCritical) {
+              console.log("Critical hit!");
             }
+
+            if (this.playerEffects.hasBurnAttack() && enemy.applyBurn) {
+              enemy.applyBurn(
+                this.playerEffects.getBurnDamage(),
+                this.playerEffects.getBurnTicks(),
+              );
+            }
+          }
         }
-    });
+      },
+    );
 
     console.log("GameScene initialized. Player, Orc and Soldier created!");
   }
@@ -344,26 +401,38 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Xử lý animation di chuyển vs đứng yên
-    if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
-      if (this.player.anims.currentAnim?.key !== 'shoot') {
-        this.player.play('walk', true);
+    if (
+      this.player.body.velocity.x !== 0 ||
+      this.player.body.velocity.y !== 0
+    ) {
+      if (this.player.anims.currentAnim?.key !== "shoot") {
+        this.player.play("walk", true);
       }
     } else {
-      if (this.player.anims.currentAnim?.key !== 'shoot') {
-        this.player.play('idle', true);
+      if (this.player.anims.currentAnim?.key !== "shoot") {
+        this.player.play("idle", true);
       }
     }
 
     // Bắn cung (nhấn Space)
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && time > this.lastFired) {
-      this.player.play('shoot', true);
+    if (
+      Phaser.Input.Keyboard.JustDown(this.spaceKey) &&
+      time > this.lastFired
+    ) {
+      this.player.play("shoot", true);
       this.shootArrow();
       this.lastFired = time + 400; // Thời gian delay giữa 2 lần bắn (400ms)
     }
 
     // Xóa mũi tên khi bay ra ngoài bản đồ
     this.arrows.getChildren().forEach((arrow) => {
-      if (arrow.active && (arrow.x < 0 || arrow.x > this.physics.world.bounds.width || arrow.y < 0 || arrow.y > this.physics.world.bounds.height)) {
+      if (
+        arrow.active &&
+        (arrow.x < 0 ||
+          arrow.x > this.physics.world.bounds.width ||
+          arrow.y < 0 ||
+          arrow.y > this.physics.world.bounds.height)
+      ) {
         arrow.disableBody(true, true);
       }
     });
@@ -371,7 +440,9 @@ export default class GameScene extends Phaser.Scene {
 
   updateActiveEffectsUi() {
     const labels = this.playerEffects?.getActiveEffectLabels() || [];
-    this.effectText?.setText(`Effects: ${labels.length > 0 ? labels.join(", ") : "None"}`);
+    this.effectText?.setText(
+      `Effects: ${labels.length > 0 ? labels.join(", ") : "None"}`,
+    );
   }
 
   spawnInitialItems(map) {
@@ -416,18 +487,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shootArrow() {
-    const arrow = this.arrows.get(this.player.x, this.player.y, 'arrow');
+    const arrow = this.arrows.get(this.player.x, this.player.y, "arrow");
     if (arrow) {
       // Kích hoạt lại vật lý và hiển thị mũi tên ở vị trí người chơi
       arrow.enableBody(true, this.player.x, this.player.y, true, true);
-      
+
       arrow.setScale(3); // Phóng to mũi tên
       arrow.setDepth(15); // Đảm bảo mũi tên luôn nổi lên trên cùng (trên cả map và quái)
-      
+
       // Bay theo hướng nhân vật đang quay mặt
       const direction = this.player.flipX ? -1 : 1;
       arrow.setFlipX(this.player.flipX);
-      
+
       const arrowSpeed = 600; // Tốc độ bay của mũi tên
       arrow.body.setSize(arrow.width, arrow.height); // Reset body size
       arrow.setVelocityX(arrowSpeed * direction);
