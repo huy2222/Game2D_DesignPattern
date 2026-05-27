@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import PlayerEffectManager from "./PlayerEffectManager";
+import HealthBarUI from "../ui/HealthBarUI";
+import PlayerEffectVisuals from "./PlayerEffectVisuals";
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -18,19 +20,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Thêm hệ thống máu cho player
     this.maxHp = 200;
-    this.hp = 500;
+    this.hp = this.maxHp;
     this.baseMoveSpeed = 175;
     this.baseAttackDamage = 25;
-    this.hpText = scene.add
-      .text(10, 10, "HP: 200", {
-        fontSize: "24px",
-        fill: "#ff0000",
-        fontStyle: "bold",
-        backgroundColor: "#ffffff88",
-        padding: { x: 5, y: 5 },
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
+    this.healthBarUI = new HealthBarUI(scene, 12, 12);
+    this.healthBarUI.update(this.hp, this.maxHp);
+    this.effectVisuals = new PlayerEffectVisuals(scene, this);
 
     // Sự kiện chuyển về idle khi bắn xong
     this.on("animationcomplete-shoot", () => {
@@ -52,9 +47,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.arrows = scene.physics.add.group({
       classType: Phaser.Physics.Arcade.Image,
       defaultKey: "arrow",
-      maxSize: 20,
     });
     this.lastFired = 0;
+    this.fireArrowTrails = new Map();
 
     // Sự kiện click chuột để bắn
     scene.input.on("pointerdown", (pointer) => {
@@ -70,7 +65,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.playerEffects = new PlayerEffectManager(
       this.scene,
       this,
-      this.hpText,
+      this.healthBarUI,
       onUpdate,
     );
   }
@@ -88,9 +83,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.playerEffects) {
-      this.playerEffects.updateHpText();
+      this.playerEffects.updateHealthUI();
     } else {
-      this.hpText.setText("HP: " + this.hp);
+      this.healthBarUI.update(this.hp, this.maxHp);
     }
 
     // Hiệu ứng chớp đỏ khi bị đánh
@@ -134,16 +129,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Xóa mũi tên khi bay ra ngoài bản đồ
     this.arrows.getChildren().forEach((arrow) => {
+      if (!arrow.active) return;
+      this.updateFireArrowTrail(arrow);
+
+      const bounds = this.scene.physics.world.bounds;
       if (
-        arrow.active &&
-        (arrow.x < 0 ||
-          arrow.x > this.scene.physics.world.bounds.width ||
-          arrow.y < 0 ||
-          arrow.y > this.scene.physics.world.bounds.height)
+        arrow.x < bounds.x ||
+        arrow.x > bounds.right ||
+        arrow.y < bounds.y ||
+        arrow.y > bounds.bottom
       ) {
-        arrow.disableBody(true, true);
+        this.clearFireArrowTrail(arrow);
+        arrow.destroy();
       }
     });
+
+    this.effectVisuals.update(this.playerEffects);
   }
 
   shootArrowPointer(pointer) {
@@ -162,15 +163,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const startY = this.y + Math.sin(angle) * spawnDistance;
 
     // Ưu tiên lấy mũi tên đã chết, nếu không có sẽ tự tạo mới
-    const arrow = this.arrows.get(startX, startY, "arrow");
-    if (!arrow) return;
+    const arrow = this.scene.physics.add.image(startX, startY, "arrow");
+    this.arrows.add(arrow);
 
     // Kích hoạt lại vật lý và hiển thị mũi tên ở vị trí người chơi
-    arrow.enableBody(true, startX, startY, true, true);
-
+    arrow.clearTint();
     arrow.setScale(3); // Phóng to mũi tên
     arrow.setDepth(15); // Đảm bảo mũi tên luôn nổi lên trên cùng
     arrow.setFlipX(false);
+
+    // Make boosted attacks visible, not just stronger in numbers.
+    if (this.playerEffects?.hasEffect("damage")) {
+      arrow.setTint(0xff7a00);
+      arrow.setScale(3.5);
+    } else if (this.playerEffects?.hasEffect("burn")) {
+      arrow.setTint(0xff3300);
+      arrow.setScale(3.8);
+      this.createFireArrowTrail(arrow);
+    } else if (this.playerEffects?.hasEffect("critical")) {
+      arrow.setTint(0xfacc15);
+    }
 
     // Quay mặt player về hướng chuột
     if (pointer.worldX < this.x) {
@@ -186,9 +198,55 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const arrowSpeed = 600;
     arrow.setVelocityX(Math.cos(angle) * arrowSpeed);
     arrow.setVelocityY(Math.sin(angle) * arrowSpeed);
+
+    this.scene.time.delayedCall(1600, () => {
+      if (arrow.active) {
+        this.clearFireArrowTrail(arrow);
+        arrow.destroy();
+      }
+    });
+  }
+
+  createFireArrowTrail(arrow) {
+    const trail = this.scene.add.graphics().setDepth(14);
+    this.fireArrowTrails.set(arrow, trail);
+    arrow.once("destroy", () => this.clearFireArrowTrail(arrow));
+  }
+
+  updateFireArrowTrail(arrow) {
+    const trail = this.fireArrowTrails.get(arrow);
+    if (!trail) return;
+
+    const angle = arrow.rotation + Math.PI;
+    trail.clear();
+
+    // Flame trail behind burn arrows so the fire shot is easy to notice.
+    for (let i = 0; i < 4; i += 1) {
+      const distance = 8 + i * 7;
+      const x = arrow.x + Math.cos(angle) * distance;
+      const y = arrow.y + Math.sin(angle) * distance;
+      trail.fillStyle(i % 2 === 0 ? 0xff4500 : 0xffc400, 0.65 - i * 0.12);
+      trail.fillCircle(x, y, 7 - i);
+    }
+  }
+
+  clearFireArrowTrail(arrow) {
+    const trail = this.fireArrowTrails.get(arrow);
+    if (!trail) return;
+
+    trail.destroy();
+    this.fireArrowTrails.delete(arrow);
   }
 
   getArrows() {
     return this.arrows;
+  }
+
+  destroy(fromScene) {
+    this.fireArrowTrails?.forEach((trail) => trail.destroy());
+    this.fireArrowTrails?.clear();
+    this.effectVisuals?.destroy();
+    this.healthBarUI?.destroy();
+    super.destroy(fromScene);
   }
 }
