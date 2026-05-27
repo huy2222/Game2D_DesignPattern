@@ -16,10 +16,10 @@ const DECORATORS = {
 const EFFECT_ORDER = ["speed", "damage", "shield", "critical", "burn"];
 
 export default class PlayerEffectManager {
-  constructor(scene, player, hpText, onChange) {
+  constructor(scene, player, healthUI, onChange) {
     this.scene = scene;
     this.player = player;
-    this.hpText = hpText;
+    this.healthUI = healthUI;
     this.onChange = onChange;
     this.baseStats = new BasePlayerStats(player);
     this.activeEffects = new Map();
@@ -96,14 +96,26 @@ export default class PlayerEffectManager {
 
   heal(amount) {
     this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
-    this.updateHpText();
+    this.updateHealthUI();
+  }
+
+  updateHealthUI() {
+    this.healthUI?.update(this.player.hp, this.player.maxHp);
   }
 
   updateHpText() {
-    this.hpText?.setText(`HP: ${this.player.hp}`);
+    this.updateHealthUI();
   }
 
   getActiveEffectLabels() {
     return EFFECT_ORDER.map((type) => this.activeEffects.get(type)?.label).filter(Boolean);
+  }
+
+  getActiveEffects() {
+    return EFFECT_ORDER.map((type) => this.activeEffects.get(type)).filter(Boolean);
+  }
+
+  hasEffect(type) {
+    return this.activeEffects.has(type);
   }
 }

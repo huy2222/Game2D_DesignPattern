@@ -39,6 +39,7 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
       this.healthBar.y = this.y - (this.height * this.scaleY) / 2 - 15;
     }
 
+    this.updateBurnVisual();
     if (this.isAttacking) return;
 
     const targetX =
@@ -139,6 +140,7 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
     this.active = false;
     this.setVelocity(0, 0);
     if (this.healthBar) this.healthBar.destroy();
+    this.clearBurnVisual();
 
     const deathAnim = `anim_${this.animPrefix}_death`;
     const hurtAnim = `anim_${this.animPrefix}_hurt`;
@@ -164,6 +166,62 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene) {
     if (this.healthBar) this.healthBar.destroy();
+    this.clearBurnVisual();
     super.destroy(fromScene);
+  }
+
+  applyBurn(damage, ticks, interval = 500) {
+    if (!this.active || this.hp <= 0) return;
+
+    // Reset burn duration instead of stacking multiple burn effects.
+    this.burnTimer?.remove(false);
+    this.burnTicksRemaining = ticks;
+    this.ensureBurnVisual();
+
+    this.burnTimer = this.scene.time.addEvent({
+      delay: interval,
+      repeat: ticks - 1,
+      callback: () => {
+        if (!this.active || this.hp <= 0) return;
+
+        this.takeDamage(damage);
+        this.burnTicksRemaining -= 1;
+
+        if (this.burnTicksRemaining <= 0 && this.active) {
+          this.clearBurnVisual();
+        }
+      },
+    });
+  }
+
+  ensureBurnVisual() {
+    if (!this.burnGraphics) {
+      this.burnGraphics = this.scene.add.graphics().setDepth(18);
+    }
+  }
+
+  updateBurnVisual() {
+    if (!this.burnGraphics || this.burnTicksRemaining <= 0) return;
+
+    const time = this.scene.time.now / 120;
+    this.burnGraphics.clear();
+
+    // Small moving flames around the enemy while burn damage is active.
+    for (let i = 0; i < 5; i += 1) {
+      const angle = time + i * 1.25;
+      const radius = 24 + Math.sin(time + i) * 4;
+      const x = this.x + Math.cos(angle) * radius;
+      const y = this.y + Math.sin(angle) * radius - 8;
+      this.burnGraphics.fillStyle(i % 2 === 0 ? 0xff4500 : 0xffc400, 0.85);
+      this.burnGraphics.fillCircle(x, y, 5);
+    }
+  }
+
+  clearBurnVisual() {
+    this.burnTimer?.remove(false);
+    this.burnTimer = null;
+    this.burnTicksRemaining = 0;
+    this.burnGraphics?.destroy();
+    this.burnGraphics = null;
   }
 }

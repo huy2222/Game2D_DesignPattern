@@ -40,6 +40,7 @@ import StealthDecorator from "../classes/Enemy/decorator/StealthDecorator";
 import StrongDecorator from "../classes/Enemy/decorator/StrongDecorator";
 import Player from "../classes/player/Player";
 import ItemFactory, { ITEM_TEXTURE_KEYS } from "../classes/items/ItemFactory";
+import ActiveEffectUI from "../classes/ui/ActiveEffectUI";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -170,18 +171,8 @@ export default class GameScene extends Phaser.Scene {
       this.physics.add.collider(this.player, layer);
     });
 
-    this.effectText = this.add
-      .text(10, 52, "Effects: None", {
-        fontSize: "16px",
-        fill: "#ffffff",
-        backgroundColor: "#00000088",
-        padding: { x: 5, y: 4 },
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
-    this.player.initEffects(this.effectText, () =>
-      this.updateActiveEffectsUi(),
-    );
+    this.activeEffectUI = new ActiveEffectUI(this, 12, 58);
+    this.player.initEffects(null, () => this.updateActiveEffectsUi());
 
     this.itemsGroup = this.physics.add.group();
     this.spawnInitialItems(map);
@@ -373,6 +364,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Lắng nghe sự kiện "Quái Chết" từ BasicEnemy
     this.events.on("enemy_died", (enemy) => {
+      this.dropItemFromEnemy(enemy);
+
       // Dọn dẹp Decorator bị thừa trong vòng lặp
       this.enemyControllers = this.enemyControllers.filter(
         (c) => c.enemy !== enemy,
@@ -435,11 +428,15 @@ export default class GameScene extends Phaser.Scene {
       this.physicsEnemiesGroup,
       (arrow, enemy) => {
         if (arrow.active && enemy.active) {
-          arrow.disableBody(true, true);
+          arrow.destroy();
 
           if (enemy.takeDamage) {
             const attack = this.player.playerEffects.rollAttackDamage();
             enemy.takeDamage(attack.amount); // TRỪ MÁU QUÁI
+
+            if (attack.isCritical) {
+              this.showCriticalDamage(enemy, attack.amount);
+            }
 
             if (this.player.playerEffects.hasBurnAttack() && enemy.applyBurn) {
               enemy.applyBurn(
@@ -491,20 +488,45 @@ export default class GameScene extends Phaser.Scene {
     this.enemyControllers.forEach((controller) => controller.update());
     if (!this.player) return;
     this.player.update(time);
+    this.activeEffectUI?.update();
   }
 
   updateActiveEffectsUi() {
-    const labels = this.player.playerEffects?.getActiveEffectLabels() || [];
-    this.effectText?.setText(
-      `Effects: ${labels.length > 0 ? labels.join(", ") : "None"}`,
-    );
+    this.activeEffectUI?.sync(this.player.playerEffects);
+  }
+
+  showCriticalDamage(enemy, amount) {
+    const text = this.add
+      .text(enemy.x, enemy.y - 55, `CRIT ${amount}`, {
+        fontSize: "18px",
+        fill: "#ffd700",
+        fontStyle: "bold",
+        stroke: "#7f1d1d",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(200);
+
+    this.tweens.add({
+      targets: text,
+      y: text.y - 28,
+      alpha: 0,
+      duration: 650,
+      ease: "Sine.easeOut",
+      onComplete: () => text.destroy(),
+    });
   }
 
   spawnInitialItems(map) {
     // Giữ nguyên logic item
     const spawnPoints = [
-      { x: 200, y: 200 },
-      { x: 400, y: 400 },
+      { x: map.widthInPixels * 0.2, y: map.heightInPixels * 0.25 },
+      { x: map.widthInPixels * 0.45, y: map.heightInPixels * 0.2 },
+      { x: map.widthInPixels * 0.7, y: map.heightInPixels * 0.3 },
+      { x: map.widthInPixels * 0.25, y: map.heightInPixels * 0.55 },
+      { x: map.widthInPixels * 0.8, y: map.heightInPixels * 0.65 },
+      { x: map.widthInPixels * 0.35, y: map.heightInPixels * 0.8 },
+      { x: map.widthInPixels * 0.65, y: map.heightInPixels * 0.85 },
     ];
     spawnPoints.forEach((point) => {
       const distanceFromPlayer = Phaser.Math.Distance.Between(
@@ -513,6 +535,7 @@ export default class GameScene extends Phaser.Scene {
         this.player.x,
         this.player.y,
       );
+      // 40% chance per point, but do not spawn directly on the player.
       if (distanceFromPlayer > 170 && Math.random() < 0.4) {
         this.spawnItem(point.x, point.y, ItemFactory.rollAnyType());
       }

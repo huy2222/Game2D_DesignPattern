@@ -36,8 +36,9 @@ export default class BaseItem extends Phaser.Physics.Arcade.Sprite {
     this.setAlpha(0.95);
     this.body.setImmovable(true);
     this.body.setAllowGravity(false);
-    // Keep pickup range close to the visible icon.
-    this.body.setSize(36, 36, true);
+    // Pickup range is larger than the icon so running across it feels responsive.
+    this.body.setSize(72, 72);
+    this.body.setOffset(92, 92);
 
     this.floatTween = scene.tweens.add({
       targets: this,
