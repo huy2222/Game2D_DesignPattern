@@ -61,6 +61,7 @@ export default class BaseItem extends Phaser.Physics.Arcade.Sprite {
   }
 
   collect(effectManager) {
+    this.scene.events.emit("item_collected", this.config);
     effectManager.applyItemEffect(this.config.effect);
     this.floatTween?.stop();
     this.auraTween?.stop();

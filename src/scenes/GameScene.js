@@ -2,6 +2,12 @@ import Phaser from "phaser";
 import mapUrl from "../assets/Map 2.json?url";
 import tilesetImg from "../assets/Tileset.png";
 import decorationsImg from "../assets/Decorations.png";
+import backgroundAudio from "../assets/audio/background.mp3";
+import attackAudio from "../assets/audio/attack.mp3";
+import enemyHitAudio from "../assets/audio/enemy_hit.mp3";
+import pickUpAudio from "../assets/audio/pick_up.mp3";
+import winAudio from "../assets/audio/win.mp3";
+import loseAudio from "../assets/audio/lose.mp3";
 import playerWalkImg from "../assets/Enemy2/Soldier-Walk.png";
 import playerAttackImg from "../assets/Enemy2/Soldier-Attack03.png";
 import arrowImg from "../assets/arrow.png";
@@ -55,6 +61,12 @@ export default class GameScene extends Phaser.Scene {
     this.load.tilemapTiledJSON("map", mapUrl);
     this.load.image("TilesetImage", tilesetImg);
     this.load.image("DecorationsImage", decorationsImg);
+    this.load.audio("background", backgroundAudio);
+    this.load.audio("attack", attackAudio);
+    this.load.audio("enemy_hit", enemyHitAudio);
+    this.load.audio("pick_up", pickUpAudio);
+    this.load.audio("win", winAudio);
+    this.load.audio("lose", loseAudio);
 
     this.load.spritesheet("player_walk", playerWalkImg, {
       frameWidth: 100,
@@ -105,6 +117,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.isGameEnded = false;
+    this.boundSceneEvents = [];
     this.cameras.main.setBackgroundColor("#1f2937");
     const map = this.make.tilemap({ key: "map" });
     const groundTileset = map.addTilesetImage("Tileset", "TilesetImage");
@@ -142,6 +156,50 @@ export default class GameScene extends Phaser.Scene {
         collidableLayers.push(layer);
       }
     });
+
+    this.bindSceneEvent("player_attack", () => this.playSfx("attack", 0.6));
+    this.bindSceneEvent("enemy_hit", () => this.playSfx("enemy_hit", 0.7));
+    this.bindSceneEvent("item_collected", () => this.playSfx("pick_up", 0.7));
+    this.bindSceneEvent("player_dead", () => this.handleLose());
+    this.bindSceneEvent("enemy_died", (enemy) => {
+      this.dropItemFromEnemy(enemy);
+
+      this.enemyControllers = this.enemyControllers.filter(
+        (c) => c.enemy !== enemy,
+      );
+
+      if (enemy.enemyType === "golem") {
+        this.handleWin();
+        return;
+      }
+
+      this.killCount++;
+      this.progressText.setText(
+        `Kills: ${this.killCount} / ${this.targetKills}`,
+      );
+
+      if (this.killCount < this.targetKills) {
+        this.time.delayedCall(2000, () => {
+          this.spawnEnemyByType(enemy.enemyType);
+        });
+      } else if (this.killCount === this.targetKills) {
+        this.progressText.setText("BOSS APPEARED!");
+        this.progressText.setColor("#ff0000");
+
+        this.time.delayedCall(2000, () => {
+          this.spawnEnemyByType("golem");
+        });
+      }
+    });
+
+    this.backgroundMusic = this.sound.add("background", {
+      loop: true,
+      volume: 0.18,
+    });
+    this.backgroundMusic.play();
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.shutdown, this);
 
     this.anims.create({
       key: "idle",
@@ -362,61 +420,6 @@ export default class GameScene extends Phaser.Scene {
     this.spawnEnemyByType("soldier");
     this.spawnEnemyByType("cultis");
 
-    // Lắng nghe sự kiện "Quái Chết" từ BasicEnemy
-    this.events.on("enemy_died", (enemy) => {
-      this.dropItemFromEnemy(enemy);
-
-      // Dọn dẹp Decorator bị thừa trong vòng lặp
-      this.enemyControllers = this.enemyControllers.filter(
-        (c) => c.enemy !== enemy,
-      );
-
-      // NẾU GIẾT BOSS GOLEM -> WIN GAME
-      if (enemy.enemyType === "golem") {
-        this.add
-          .text(
-            this.cameras.main.centerX,
-            this.cameras.main.centerY,
-            "VICTORY!",
-            {
-              fontSize: "80px",
-              fill: "#00ff00",
-              fontStyle: "bold",
-              stroke: "#000",
-              strokeThickness: 6,
-            },
-          )
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(1000);
-        this.scene.pause(); // Dừng game
-        return;
-      }
-
-      // Nếu giết quái thường
-      this.killCount++;
-      this.progressText.setText(
-        `Kills: ${this.killCount} / ${this.targetKills}`,
-      );
-
-      // Đẻ thêm quái đợt tiếp theo
-      if (this.killCount < this.targetKills) {
-        // Sau 2 giây sẽ hồi sinh lại đúng loại quái vừa chết
-        this.time.delayedCall(2000, () => {
-          this.spawnEnemyByType(enemy.enemyType);
-        });
-      }
-      // Khi đủ 9 kill -> GỌI BOSS
-      else if (this.killCount === this.targetKills) {
-        this.progressText.setText("BOSS APPEARED!");
-        this.progressText.setColor("#ff0000");
-
-        this.time.delayedCall(2000, () => {
-          this.spawnEnemyByType("golem");
-        });
-      }
-    });
-
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.roundPixels = true;
@@ -448,6 +451,73 @@ export default class GameScene extends Phaser.Scene {
         }
       },
     );
+  }
+
+  bindSceneEvent(eventName, handler) {
+    this.events.on(eventName, handler);
+    this.boundSceneEvents.push({ eventName, handler });
+  }
+
+  playSfx(key, volume = 1) {
+    this.sound.play(key, { volume });
+  }
+
+  handleWin() {
+    if (this.isGameEnded) return;
+    this.isGameEnded = true;
+
+    this.playSfx("win", 0.9);
+    this.add
+      .text(this.cameras.main.centerX, this.cameras.main.centerY, "VICTORY!", {
+        fontSize: "80px",
+        fill: "#00ff00",
+        fontStyle: "bold",
+        stroke: "#000",
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.physics.pause();
+    this.scene.pause();
+  }
+
+  handleLose() {
+    if (this.isGameEnded) return;
+    this.isGameEnded = true;
+
+    this.playSfx("lose", 0.9);
+    this.add
+      .text(this.cameras.main.centerX, this.cameras.main.centerY, "GAME OVER", {
+        fontSize: "72px",
+        fill: "#ff4444",
+        fontStyle: "bold",
+        stroke: "#000",
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.physics.pause();
+    this.time.delayedCall(1400, () => {
+      if (this.scene.isActive()) {
+        this.scene.restart();
+      }
+    });
+  }
+
+  shutdown() {
+    this.boundSceneEvents?.forEach(({ eventName, handler }) => {
+      this.events.off(eventName, handler);
+    });
+    this.boundSceneEvents = [];
+
+    this.backgroundMusic?.stop();
+    this.backgroundMusic?.destroy();
+    this.backgroundMusic = null;
+    this.isGameEnded = false;
   }
 
   // --- HÀM HỖ TRỢ SPAWN QUÁI Ở VỊ TRÍ BẤT KỲ TRÊN BẢN ĐỒ ---
