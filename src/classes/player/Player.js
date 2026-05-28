@@ -50,15 +50,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     });
     this.lastFired = 0;
     this.fireArrowTrails = new Map();
+    this.isDead = false;
 
     // Sự kiện click chuột để bắn
-    scene.input.on("pointerdown", (pointer) => {
+    this.handlePointerDown = (pointer) => {
       if (scene.time.now > this.lastFired) {
         this.play("shoot", true);
         this.shootArrowPointer(pointer);
         this.lastFired = scene.time.now + 400;
       }
-    });
+    };
+    scene.input.on("pointerdown", this.handlePointerDown);
   }
 
   initEffects(effectText, onUpdate) {
@@ -71,6 +73,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
+    if (this.isDead) return;
+
     let finalDamage = amount;
     if (this.playerEffects) {
       finalDamage = this.playerEffects.takeDamage(amount);
@@ -79,7 +83,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.hp <= 0) {
       this.hp = 0;
       console.log("Player died!");
-      this.scene.scene.restart(); // Chết thì reset game
+      this.isDead = true;
+      this.setVelocity(0, 0);
+      this.scene.events.emit("player_dead", this);
     }
 
     if (this.playerEffects) {
@@ -165,6 +171,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // Ưu tiên lấy mũi tên đã chết, nếu không có sẽ tự tạo mới
     const arrow = this.scene.physics.add.image(startX, startY, "arrow");
     this.arrows.add(arrow);
+    this.scene.events.emit("player_attack", { arrow, player: this });
 
     // Kích hoạt lại vật lý và hiển thị mũi tên ở vị trí người chơi
     arrow.clearTint();
@@ -243,6 +250,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy(fromScene) {
+    this.scene?.input?.off("pointerdown", this.handlePointerDown);
     this.fireArrowTrails?.forEach((trail) => trail.destroy());
     this.fireArrowTrails?.clear();
     this.effectVisuals?.destroy();
