@@ -488,24 +488,9 @@ export default class GameScene extends Phaser.Scene {
     this.isGameEnded = true;
 
     this.playSfx("lose", 0.9);
-    this.add
-      .text(this.cameras.main.centerX, this.cameras.main.centerY, "GAME OVER", {
-        fontSize: "72px",
-        fill: "#ff4444",
-        fontStyle: "bold",
-        stroke: "#000",
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(1000);
-
+    this.scene.launch("GameOverScene"); 
     this.physics.pause();
-    this.time.delayedCall(1400, () => {
-      if (this.scene.isActive()) {
-        this.scene.restart();
-      }
-    });
+    this.scene.pause();
   }
 
   shutdown() {
