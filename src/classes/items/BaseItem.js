@@ -61,14 +61,14 @@ export default class BaseItem extends Phaser.Physics.Arcade.Sprite {
   }
 
   collect(effectManager) {
-    this.scene.events.emit("item_collected", this.config);
-    effectManager.applyItemEffect(this.config.effect);
+    const pickupChange = effectManager.applyItemEffect(this.config.effect);
     this.floatTween?.stop();
     this.auraTween?.stop();
     this.shadow?.destroy();
     this.aura?.destroy();
     this.disableBody(true, true);
     this.destroy();
+    return pickupChange;
   }
 
   preUpdate(time, delta) {

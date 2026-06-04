@@ -14,6 +14,7 @@ const DECORATORS = {
 };
 
 const EFFECT_ORDER = ["speed", "damage", "shield", "critical", "burn"];
+const INSTANT_PICKUP_DISPLAY_DURATION = 3000;
 
 export default class PlayerEffectManager {
   constructor(scene, player, healthUI, onChange) {
@@ -27,14 +28,17 @@ export default class PlayerEffectManager {
   }
 
   applyItemEffect(effect) {
+    const beforeStats = this.getStatSnapshot();
+    const wasActive = effect.type !== "health" && this.hasEffect(effect.type);
+
     if (effect.type === "health") {
       this.heal(effect.amount);
       this.onChange?.();
-      return;
+      return this.createPickupChange(effect, beforeStats, this.getStatSnapshot());
     }
 
     const Decorator = DECORATORS[effect.type];
-    if (!Decorator) return;
+    if (!Decorator) return null;
 
     const expiresAt = this.scene.time.now + effect.duration;
     const oldEffect = this.activeEffects.get(effect.type);
@@ -55,6 +59,12 @@ export default class PlayerEffectManager {
 
     this.rebuildStats();
     this.onChange?.();
+    return this.createPickupChange(
+      effect,
+      beforeStats,
+      this.getStatSnapshot(),
+      wasActive,
+    );
   }
 
   rebuildStats() {
@@ -117,5 +127,88 @@ export default class PlayerEffectManager {
 
   hasEffect(type) {
     return this.activeEffects.has(type);
+  }
+
+  getStatSnapshot() {
+    return {
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      moveSpeed: this.currentStats.getMoveSpeed(),
+      attackDamage: this.currentStats.getAttackDamage(),
+      damageReduction: this.currentStats.getDamageReduction(),
+      criticalChance: this.currentStats.getCriticalChance(),
+      hasBurnAttack: this.currentStats.hasBurnAttack(),
+      burnDamage: this.currentStats.getBurnDamage(),
+      burnTicks: this.currentStats.getBurnTicks(),
+    };
+  }
+
+  createPickupChange(effect, before, after, wasActive = false) {
+    const durationText = effect.duration
+      ? `${Math.round(effect.duration / 1000)}s`
+      : null;
+    const statusText = wasActive ? "Gia han" : "Tang chi so";
+    const activeEffect = this.activeEffects.get(effect.type);
+    const baseChange = {
+      type: effect.type,
+      durationText,
+      statusText,
+      expiresAt:
+        activeEffect?.expiresAt ||
+        this.scene.time.now + INSTANT_PICKUP_DISPLAY_DURATION,
+      duration: effect.duration || INSTANT_PICKUP_DISPLAY_DURATION,
+    };
+
+    switch (effect.type) {
+      case "speed":
+        return {
+          ...baseChange,
+          title: "Tang toc",
+          statLine: `Toc do: ${before.moveSpeed} -> ${after.moveSpeed}`,
+        };
+      case "damage":
+        return {
+          ...baseChange,
+          title: "Tang sat thuong",
+          statLine: `Sat thuong: ${before.attackDamage} -> ${after.attackDamage}`,
+        };
+      case "shield":
+        return {
+          ...baseChange,
+          title: "Khien bao ve",
+          statLine: `Giam sat thuong: ${this.formatPercent(before.damageReduction)} -> ${this.formatPercent(after.damageReduction)}`,
+        };
+      case "health":
+        return {
+          ...baseChange,
+          title: "Hoi mau",
+          statLine: `Mau: ${before.hp}/${before.maxHp} -> ${after.hp}/${after.maxHp}`,
+          durationText: `+${effect.amount} HP`,
+          statusText: "Hoi phuc",
+        };
+      case "critical":
+        return {
+          ...baseChange,
+          title: "Chi mang",
+          statLine: `Ti le crit: ${this.formatPercent(before.criticalChance)} -> ${this.formatPercent(after.criticalChance)}`,
+        };
+      case "burn":
+        return {
+          ...baseChange,
+          title: "Mui ten lua",
+          statLine: `Dot: ${this.formatBurn(before)} -> ${this.formatBurn(after)}`,
+        };
+      default:
+        return null;
+    }
+  }
+
+  formatPercent(value) {
+    return `${Math.round(value * 100)}%`;
+  }
+
+  formatBurn(stats) {
+    if (!stats.hasBurnAttack) return "Tat";
+    return `${stats.burnDamage} x ${stats.burnTicks}`;
   }
 }
