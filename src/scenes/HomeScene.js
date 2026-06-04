@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import bgImg from "../assets/homeUI/background.png";
 import playBtnImg from "../assets/homeUI/playGameButton.png";
+import startGameAudio from "../assets/audio/start_game.mp3";
 
 export default class HomeScene extends Phaser.Scene {
   constructor() {
@@ -13,6 +14,9 @@ export default class HomeScene extends Phaser.Scene {
 
     // nút play
     this.load.image("playButton", playBtnImg);
+
+    // sound effect khi bắt đầu game
+    this.load.audio("start_game", startGameAudio);
   }
 
   create() {
@@ -57,7 +61,10 @@ export default class HomeScene extends Phaser.Scene {
     // chuyển scene
 
     button.on("pointerdown", () => {
-      this.scene.start("GameScene");
+      this.sound.play("start_game", { volume: 0.8 });
+      this.time.delayedCall(150, () => {
+        this.scene.start("GameScene");
+      });
     });
   }
 }

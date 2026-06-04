@@ -107,6 +107,7 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.hp -= amount;
     this.updateHealthBar();
+    this.scene.events.emit("enemy_hit", this, amount);
 
     // Nhấp nháy đỏ khi bị bắn
     this.setTint(0xff0000);
