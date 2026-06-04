@@ -42,6 +42,15 @@ import Player from "../classes/player/Player";
 import ItemFactory, { ITEM_TEXTURE_KEYS } from "../classes/items/ItemFactory";
 import ActiveEffectUI from "../classes/ui/ActiveEffectUI";
 
+const PICKUP_CHANGE_STYLES = {
+  speed: { accent: 0x38bdf8, text: "#bae6fd" },
+  damage: { accent: 0xf97316, text: "#fed7aa" },
+  shield: { accent: 0x60a5fa, text: "#bfdbfe" },
+  health: { accent: 0x22c55e, text: "#bbf7d0" },
+  critical: { accent: 0xfacc15, text: "#fef08a" },
+  burn: { accent: 0xef4444, text: "#fecaca" },
+};
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene");
@@ -172,12 +181,14 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.activeEffectUI = new ActiveEffectUI(this, 12, 58);
+    this.pickupChangeCards = new Map();
     this.player.initEffects(null, () => this.updateActiveEffectsUi());
 
     this.itemsGroup = this.physics.add.group();
     this.spawnInitialItems(map);
     this.physics.add.overlap(this.player, this.itemsGroup, (player, item) => {
-      item.collect(this.player.playerEffects);
+      const pickupChange = item.collect(this.player.playerEffects);
+      this.showPickupStatChange(pickupChange);
     });
 
     // --- ANIMATIONS ---
@@ -489,6 +500,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.player) return;
     this.player.update(time);
     this.activeEffectUI?.update();
+    this.updatePickupStatChanges();
   }
 
   updateActiveEffectsUi() {
@@ -515,6 +527,143 @@ export default class GameScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       onComplete: () => text.destroy(),
     });
+  }
+
+  showPickupStatChange(change) {
+    if (!change) return;
+
+    this.destroyPickupChangeCard(change.type);
+
+    const style = PICKUP_CHANGE_STYLES[change.type] || {
+      accent: 0xffffff,
+      text: "#ffffff",
+    };
+    const durationLine = change.durationText
+      ? `${change.statusText} | ${change.durationText}`
+      : change.statusText;
+
+    const width = 390;
+    const height = 64;
+    const container = this.add.container(0, 0).setScrollFactor(0).setDepth(650);
+    const background = this.add.graphics();
+    const progress = this.add.graphics();
+    const icon = this.add
+      .image(-width / 2 + 34, 0, ITEM_TEXTURE_KEYS[change.type])
+      .setDisplaySize(34, 34);
+    const titleText = this.add
+      .text(-width / 2 + 64, -14, change.title, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: style.text,
+        stroke: "#111827",
+        strokeThickness: 4,
+      })
+      .setOrigin(0, 0.5);
+    const statText = this.add
+      .text(-width / 2 + 64, 10, change.statLine, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "16px",
+        fontStyle: "bold",
+        color: "#ffffff",
+        stroke: "#111827",
+        strokeThickness: 4,
+      })
+      .setOrigin(0, 0.5);
+    const durationText = this.add
+      .text(width / 2 - 14, -14, durationLine, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "13px",
+        color: "#d1d5db",
+        stroke: "#111827",
+        strokeThickness: 3,
+      })
+      .setOrigin(1, 0.5);
+
+    background.fillStyle(0x111827, 0.88);
+    background.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+    background.lineStyle(2, style.accent, 0.95);
+    background.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+    background.fillStyle(style.accent, 0.95);
+    background.fillRoundedRect(-width / 2, -height / 2, 7, height, 8);
+
+    container.add([background, progress, icon, titleText, statText, durationText]);
+
+    this.tweens.add({
+      targets: container,
+      alpha: { from: 0, to: 1 },
+      scale: { from: 0.96, to: 1 },
+      duration: 160,
+      ease: "Sine.easeOut",
+    });
+
+    this.pickupChangeCards.set(change.type, {
+      container,
+      progress,
+      accent: style.accent,
+      change,
+      width,
+      height,
+    });
+    this.layoutPickupChangeCards();
+    this.drawPickupChangeProgress(this.pickupChangeCards.get(change.type));
+  }
+
+  updatePickupStatChanges() {
+    if (!this.pickupChangeCards?.size) return;
+
+    Array.from(this.pickupChangeCards.values()).forEach((card) => {
+      if (this.time.now >= card.change.expiresAt) {
+        this.destroyPickupChangeCard(card.change.type);
+        return;
+      }
+
+      this.drawPickupChangeProgress(card);
+    });
+    this.layoutPickupChangeCards();
+  }
+
+  drawPickupChangeProgress(card) {
+    const remaining = Math.max(0, card.change.expiresAt - this.time.now);
+    const ratio = Phaser.Math.Clamp(remaining / card.change.duration, 0, 1);
+    const barWidth = (card.width - 18) * ratio;
+
+    card.progress.clear();
+    card.progress.fillStyle(0x000000, 0.38);
+    card.progress.fillRoundedRect(
+      -card.width / 2 + 9,
+      card.height / 2 - 9,
+      card.width - 18,
+      5,
+      3,
+    );
+    card.progress.fillStyle(card.accent, 0.95);
+    card.progress.fillRoundedRect(
+      -card.width / 2 + 9,
+      card.height / 2 - 9,
+      barWidth,
+      5,
+      3,
+    );
+  }
+
+  layoutPickupChangeCards() {
+    if (!this.pickupChangeCards?.size) return;
+
+    Array.from(this.pickupChangeCards.values()).forEach((card, index) => {
+      card.container.setPosition(
+        this.cameras.main.width / 2,
+        96 + index * (card.height + 8),
+      );
+    });
+  }
+
+  destroyPickupChangeCard(type) {
+    const card = this.pickupChangeCards?.get(type);
+    if (!card) return;
+
+    card.container.destroy(true);
+    this.pickupChangeCards.delete(type);
   }
 
   spawnInitialItems(map) {

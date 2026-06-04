@@ -18,17 +18,17 @@ export const ITEM_CONFIGS = {
   speed: {
     type: "speed",
     textureKey: ITEM_TEXTURE_KEYS.speed,
-    effect: { type: "speed", label: "Speed", duration: 6000 },
+    effect: { type: "speed", label: "Speed", duration: 5000 },
   },
   damage: {
     type: "damage",
     textureKey: ITEM_TEXTURE_KEYS.damage,
-    effect: { type: "damage", label: "Damage", duration: 6000 },
+    effect: { type: "damage", label: "Damage", duration: 3000 },
   },
   shield: {
     type: "shield",
     textureKey: ITEM_TEXTURE_KEYS.shield,
-    effect: { type: "shield", label: "Shield", duration: 8000 },
+    effect: { type: "shield", label: "Shield", duration: 5000 },
   },
   health: {
     type: "health",
@@ -38,12 +38,12 @@ export const ITEM_CONFIGS = {
   critical: {
     type: "critical",
     textureKey: ITEM_TEXTURE_KEYS.critical,
-    effect: { type: "critical", label: "Critical", duration: 8000 },
+    effect: { type: "critical", label: "Critical", duration: 3000 },
   },
   burn: {
     type: "burn",
     textureKey: ITEM_TEXTURE_KEYS.burn,
-    effect: { type: "burn", label: "Burn", duration: 6000 },
+    effect: { type: "burn", label: "Burn", duration: 3000 },
   },
 };
 
