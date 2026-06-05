@@ -3,6 +3,57 @@ import PlayerEffectManager from "./PlayerEffectManager";
 import HealthBarUI from "../ui/HealthBarUI";
 import PlayerEffectVisuals from "./PlayerEffectVisuals";
 
+function getOpaqueFrameBounds(frame) {
+  const image = frame?.source?.image;
+  const width = frame?.width ?? 0;
+  const height = frame?.height ?? 0;
+
+  if (!image || width <= 0 || height <= 0 || typeof document === "undefined") {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  try {
+    context.drawImage(image, frame.x, frame.y, width, height, 0, 0, width, height);
+    const pixels = context.getImageData(0, 0, width, height).data;
+
+    let left = width;
+    let right = -1;
+    let top = height;
+    let bottom = -1;
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const alpha = pixels[(y * width + x) * 4 + 3];
+
+        if (alpha === 0) continue;
+
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+
+    if (right < left || bottom < top) return null;
+
+    return {
+      x: left,
+      y: top,
+      width: right - left + 1,
+      height: bottom - top + 1,
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
     super(scene, x, y, texture);
@@ -11,12 +62,23 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    // ✅ NOW setCollideWorldBounds(true) will work correctly because
+    // physics.world.setBounds() is called BEFORE Player creation in GameScene
     this.setCollideWorldBounds(true);
+    this.setBounce(0, 0); // Prevent bouncing at boundaries
     this.setScale(3); // Làm player bự bằng enemy
+    this.setDepth(10);
 
     // Thu nhỏ hitbox (bounding box) để va chạm chuẩn xác hơn
-    this.body.setSize(20, 30);
-    this.body.setOffset(40, 60);
+    const visibleBounds = getOpaqueFrameBounds(this.frame);
+    if (visibleBounds) {
+      this.body.setSize(visibleBounds.width, visibleBounds.height);
+      this.body.setOffset(visibleBounds.x, visibleBounds.y);
+    } else {
+      this.body.setSize(this.frame.width, this.frame.height);
+      this.body.setOffset(0, 0);
+    }
+    this.body.updateFromGameObject();
 
     // Thêm hệ thống máu cho player
     this.maxHp = 200;

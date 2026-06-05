@@ -57,6 +57,32 @@ const PICKUP_CHANGE_STYLES = {
   burn: { accent: 0xef4444, text: "#fecaca" },
 };
 
+function getTileLayerOffset(map, layerData) {
+  const tileX = layerData?.x ?? 0;
+  const tileY = layerData?.y ?? 0;
+  const pixelX = layerData?.offsetX ?? layerData?.offsetx ?? 0;
+  const pixelY = layerData?.offsetY ?? layerData?.offsety ?? 0;
+  const tileWidth = map.tileWidth ?? map.tilewidth ?? 0;
+  const tileHeight = map.tileHeight ?? map.tileheight ?? 0;
+
+  return {
+    x: tileX * tileWidth + pixelX,
+    y: tileY * tileHeight + pixelY,
+  };
+}
+
+function hasCollisionProperty(layer) {
+  const properties = layer?.layer?.properties ?? [];
+
+  return (
+    properties.some(
+      (property) =>
+        (property.name === "collision" || property.name === "collides") &&
+        (property.value === true || property.value === 1),
+    ) || /collision|wall|obstacle/i.test(layer?.layer?.name ?? "")
+  );
+}
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene");
@@ -137,6 +163,8 @@ export default class GameScene extends Phaser.Scene {
     );
     const tilesets = [groundTileset, decorationTileset].filter(Boolean);
     const mapLayers = {};
+    const tileLayerOffsets = [];
+    const sourceLayers = map.layers || [];
     const fallbackLayerNames = [
       "Background",
       "GrassnLake",
@@ -144,23 +172,60 @@ export default class GameScene extends Phaser.Scene {
       "Decoration 2",
     ];
     const layerNamesToCreate =
-      (map.layers || []).length > 0
-        ? map.layers.map((l) => l.name)
+      sourceLayers.length > 0
+        ? sourceLayers.map((l) => l.name)
         : fallbackLayerNames;
 
     layerNamesToCreate.forEach((layerName) => {
-      const layer = map.createLayer(layerName, tilesets, 0, 0);
-      if (layer) mapLayers[layerName] = layer;
+      const layerData = sourceLayers.find(
+        (candidate) => candidate.name === layerName,
+      );
+      const layerOffset = getTileLayerOffset(map, layerData);
+      const layer = map.createLayer(
+        layerName,
+        tilesets,
+        layerOffset.x,
+        layerOffset.y,
+      );
+      if (layer) {
+        layer.setDepth(tileLayerOffsets.length);
+        tileLayerOffsets.push(layerOffset);
+        mapLayers[layerName] = layer;
+      }
     });
+
+    // Keep world and camera bounds aligned with the tile layer origin.
+    const mapOrigin = tileLayerOffsets[0] ?? { x: 0, y: 0 };
+    this.mapBounds = new Phaser.Geom.Rectangle(
+      mapOrigin.x,
+      mapOrigin.y,
+      map.widthInPixels,
+      map.heightInPixels,
+    );
+
+    this.physics.world.setBounds(
+      this.mapBounds.x,
+      this.mapBounds.y,
+      this.mapBounds.width,
+      this.mapBounds.height,
+    );
+    this.cameras.main.setBounds(
+      this.mapBounds.x,
+      this.mapBounds.y,
+      this.mapBounds.width,
+      this.mapBounds.height,
+    );
+    this.cameras.main.setZoom(
+      Math.max(
+        1,
+        this.cameras.main.width / this.mapBounds.width,
+        this.cameras.main.height / this.mapBounds.height,
+      ),
+    );
 
     const collidableLayers = [];
     Object.values(mapLayers).forEach((layer) => {
-      const hasCollision = (layer.layer.properties || []).some(
-        (p) =>
-          (p.name === "collision" || p.name === "collides") &&
-          (p.value === true || p.value === 1),
-      );
-      if (hasCollision || /collision|wall|obstacle/i.test(layer.layer.name)) {
+      if (hasCollisionProperty(layer)) {
         layer.setCollisionByExclusion([-1], true);
         collidableLayers.push(layer);
       }
@@ -230,8 +295,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.player = new Player(
       this,
-      map.widthInPixels / 2,
-      map.heightInPixels / 2,
+      this.mapBounds.centerX,
+      this.mapBounds.centerY,
       "player_walk",
     );
     collidableLayers.forEach((layer) => {
@@ -431,8 +496,6 @@ export default class GameScene extends Phaser.Scene {
     this.spawnEnemyByType("soldier");
     this.spawnEnemyByType("cultis");
 
-    this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
-    this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.roundPixels = true;
     this.cameras.main.startFollow(this.player, true);
 
@@ -537,10 +600,9 @@ export default class GameScene extends Phaser.Scene {
   // --- HÀM HỖ TRỢ SPAWN QUÁI Ở VỊ TRÍ BẤT KỲ TRÊN BẢN ĐỒ ---
   spawnEnemyByType(type) {
     // Sinh ngẫu nhiên tọa độ X, Y (cách lề 200px cho an toàn)
-    const mapW = this.physics.world.bounds.width;
-    const mapH = this.physics.world.bounds.height;
-    const randX = Phaser.Math.Between(200, mapW - 200);
-    const randY = Phaser.Math.Between(200, mapH - 200);
+    const bounds = this.mapBounds ?? this.physics.world.bounds;
+    const randX = Phaser.Math.Between(bounds.left + 200, bounds.right - 200);
+    const randY = Phaser.Math.Between(bounds.top + 200, bounds.bottom - 200);
 
     let enemy, decorator;
     if (type === "orc") {
@@ -556,8 +618,8 @@ export default class GameScene extends Phaser.Scene {
       // Golem xuất hiện gần trung tâm hơn một chút
       enemy = new BasicEnemy(
         this,
-        mapW / 2 + 100,
-        mapH / 2,
+        bounds.centerX + 100,
+        bounds.centerY,
         "golem_idle",
         "golem",
       );
@@ -797,14 +859,15 @@ export default class GameScene extends Phaser.Scene {
 
   spawnInitialItems(map) {
     // Giữ nguyên logic item
+    const bounds = this.mapBounds ?? this.physics.world.bounds;
     const spawnPoints = [
-      { x: map.widthInPixels * 0.2, y: map.heightInPixels * 0.25 },
-      { x: map.widthInPixels * 0.45, y: map.heightInPixels * 0.2 },
-      { x: map.widthInPixels * 0.7, y: map.heightInPixels * 0.3 },
-      { x: map.widthInPixels * 0.25, y: map.heightInPixels * 0.55 },
-      { x: map.widthInPixels * 0.8, y: map.heightInPixels * 0.65 },
-      { x: map.widthInPixels * 0.35, y: map.heightInPixels * 0.8 },
-      { x: map.widthInPixels * 0.65, y: map.heightInPixels * 0.85 },
+      { x: bounds.x + bounds.width * 0.2, y: bounds.y + bounds.height * 0.25 },
+      { x: bounds.x + bounds.width * 0.45, y: bounds.y + bounds.height * 0.2 },
+      { x: bounds.x + bounds.width * 0.7, y: bounds.y + bounds.height * 0.3 },
+      { x: bounds.x + bounds.width * 0.25, y: bounds.y + bounds.height * 0.55 },
+      { x: bounds.x + bounds.width * 0.8, y: bounds.y + bounds.height * 0.65 },
+      { x: bounds.x + bounds.width * 0.35, y: bounds.y + bounds.height * 0.8 },
+      { x: bounds.x + bounds.width * 0.65, y: bounds.y + bounds.height * 0.85 },
     ];
     spawnPoints.forEach((point) => {
       const distanceFromPlayer = Phaser.Math.Distance.Between(
