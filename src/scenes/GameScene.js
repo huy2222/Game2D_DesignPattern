@@ -416,7 +416,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Text UI Đếm Kill (Góc trên bên phải màn hình)
     this.progressText = this.add
-      .text(this.cameras.main.width - 150, 20, "Kills: 0 / 9", {
+      .text(this.cameras.main.width - 200, 20, "Kills: 0 / 9", {
         fontSize: "24px",
         fill: "#ffcc00",
         fontStyle: "bold",
@@ -517,7 +517,7 @@ export default class GameScene extends Phaser.Scene {
     this.isGameEnded = true;
 
     this.playSfx("lose", 0.9);
-    this.scene.launch("GameOverScene"); 
+    this.scene.launch("GameOverScene");
     this.physics.pause();
     this.scene.pause();
   }
@@ -709,7 +709,14 @@ export default class GameScene extends Phaser.Scene {
     background.fillStyle(style.accent, 0.95);
     background.fillRoundedRect(-width / 2, -height / 2, 7, height, 8);
 
-    container.add([background, progress, icon, titleText, statText, durationText]);
+    container.add([
+      background,
+      progress,
+      icon,
+      titleText,
+      statText,
+      durationText,
+    ]);
 
     this.tweens.add({
       targets: container,
