@@ -23,6 +23,19 @@ export default class BasicEnemy extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(10);
     this.setScale(3);
 
+    // Thu nhỏ hitbox (bounding box) của quái để va chạm chuẩn xác hơn
+    // Khắc phục lỗi mũi tên sinh ra bị va chạm ngay lập tức với quái do hitbox mặc định quá to
+    if (this.enemyType === "orc" || this.enemyType === "soldier") {
+      this.body.setSize(20, 30);
+      this.body.setOffset(40, 60);
+    } else if (this.enemyType === "cultis") {
+      this.body.setSize(20, 30);
+      this.body.setOffset(22, 34);
+    } else if (this.enemyType === "golem") {
+      this.body.setSize(50, 80);
+      this.body.setOffset(103, 140);
+    }
+
     try {
       if (this.animPrefix) this.play(`anim_${this.animPrefix}_idle`);
     } catch (e) {
