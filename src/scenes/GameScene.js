@@ -442,11 +442,29 @@ export default class GameScene extends Phaser.Scene {
       this.physicsEnemiesGroup,
       (arrow, enemy) => {
         if (arrow.active && enemy.active) {
-          arrow.destroy();
+          // Không destroy mũi tên ngay lập tức để người chơi kịp nhìn thấy mũi tên chạm vào quái khi ở gần
+          arrow.active = false;
+          arrow.body.enable = false;
+          arrow.setVelocity(0, 0);
+          
+          this.time.delayedCall(60, () => {
+            if (arrow && arrow.scene) {
+              this.player.clearFireArrowTrail(arrow);
+              arrow.destroy();
+            }
+          });
 
           if (enemy.takeDamage) {
             const attack = this.player.playerEffects.rollAttackDamage();
             enemy.takeDamage(attack.amount); // TRỪ MÁU QUÁI
+
+            // --- THÊM HIỆU ỨNG CHẠM (HIT EFFECT) ---
+            let effectColor = 0xffffff;
+            if (attack.isCritical) effectColor = 0xffd700; // Vàng cho Crit
+            else if (this.player.playerEffects.hasEffect("burn")) effectColor = 0xff4500; // Đỏ cam cho Lửa
+            else effectColor = 0xcccccc; // Trắng xám cho Đánh thường
+            
+            this.showHitEffect(arrow.x, arrow.y, effectColor);
 
             if (attack.isCritical) {
               this.showCriticalDamage(enemy, attack.amount);
@@ -560,6 +578,55 @@ export default class GameScene extends Phaser.Scene {
 
   updateActiveEffectsUi() {
     this.activeEffectUI?.sync(this.player.playerEffects);
+  }
+
+  showHitEffect(x, y, color = 0xffffff) {
+    // 1. Tạo các tia lửa (Sparks) bắn ra xung quanh
+    const numSparks = Phaser.Math.Between(5, 8);
+    for (let i = 0; i < numSparks; i++) {
+      const spark = this.add.graphics();
+      spark.fillStyle(color, 1);
+      
+      const size = Phaser.Math.Between(2, 4);
+      spark.fillCircle(0, 0, size);
+      spark.setPosition(x, y);
+      spark.setDepth(200);
+
+      // Tính toán hướng ngẫu nhiên và tốc độ
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const speed = Phaser.Math.Between(40, 90);
+      const targetX = x + Math.cos(angle) * speed;
+      const targetY = y + Math.sin(angle) * speed;
+
+      this.tweens.add({
+        targets: spark,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        scale: 0.1,
+        duration: Phaser.Math.Between(200, 400),
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          spark.destroy();
+        }
+      });
+    }
+
+    // 2. Tạo một vòng tròn (Ring) phình to rồi mờ dần
+    const ring = this.add.graphics();
+    ring.lineStyle(3, color, 1);
+    ring.strokeCircle(0, 0, 6);
+    ring.setPosition(x, y);
+    ring.setDepth(199);
+
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scale: 2.5,
+      duration: 250,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy()
+    });
   }
 
   showCriticalDamage(enemy, amount) {

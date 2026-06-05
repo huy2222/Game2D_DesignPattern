@@ -108,19 +108,30 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(0);
 
     // Di chuyển
+    let moveX = 0;
+    let moveY = 0;
+
     if (this.cursors.left.isDown || this.wasd.left.isDown) {
-      this.setVelocityX(-speed);
+      moveX = -1;
       this.setFlipX(true);
     } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
-      this.setVelocityX(speed);
+      moveX = 1;
       this.setFlipX(false);
     }
 
     if (this.cursors.up.isDown || this.wasd.up.isDown) {
-      this.setVelocityY(-speed);
+      moveY = -1;
     } else if (this.cursors.down.isDown || this.wasd.down.isDown) {
-      this.setVelocityY(speed);
+      moveY = 1;
     }
+
+    // Chuẩn hóa vector di chuyển chéo (để không bị chạy nhanh hơn 40% khi đi chéo)
+    if (moveX !== 0 && moveY !== 0) {
+      moveX *= 0.7071; // 1 / Math.sqrt(2)
+      moveY *= 0.7071;
+    }
+
+    this.setVelocity(moveX * speed, moveY * speed);
 
     // Xử lý animation di chuyển vs đứng yên
     if (this.body.velocity.x !== 0 || this.body.velocity.y !== 0) {
@@ -162,9 +173,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       pointer.worldY,
     );
 
-    // Tính toán vị trí xuất phát của mũi tên (cách tâm player 40 pixel)
-    // Mục đích: Mũi tên bay ra từ tay nhân vật, tránh việc cái đuôi mũi tên chạm vào quái đang cắn lén sau lưng
-    const spawnDistance = 40;
+    // Tính toán vị trí xuất phát của mũi tên (cách tâm player 20 pixel)
+    // Giảm từ 40 xuống 20 để khi quái lại quá gần, mũi tên không bị spawn xuyên qua/bỏ qua quái
+    // Đồng thời vẫn đủ xa để cái đuôi mũi tên không chạm vào quái đang cắn lén sau lưng
+    const spawnDistance = 20;
     const startX = this.x + Math.cos(angle) * spawnDistance;
     const startY = this.y + Math.sin(angle) * spawnDistance;
 
